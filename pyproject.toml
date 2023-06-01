@@ -1,0 +1,73 @@
+[project]
+name = "django-retriever"
+version = "0.0.1"
+description = """
+The `Retriever` class is used to bridge the
+relationship between a JSON document and a django
+model.
+"""
+dependencies = [
+    "django>=4.2",
+]
+keywords = [
+    "django",
+    "JSON",
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.license]
+file = "LICENSE.txt"
+
+[[project.authors]]
+name = "Jake Ballantyne"
+email = "jake.david.ballantyne@gmail.com"
+
+[[project.maintainers]]
+name = "Jake Ballantyne"
+email = "jake.david.ballantyne@gmail.com"
+
+[project.urls]
+Homepage = "https://github.com/jbal/django-retriever"
+Issues = "https://github.com/jbal/django-retriever/issues"
+Repository = "https://github.com/jbal/django-retriever"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.2.0",
+]
+dev = [
+    "pre-commit>=2.20.0",
+]
+
+[build-system]
+requires = [
+    "setuptools>=61.0",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 79
+target-version = ["py310"]
+include = '\.pyi?$'
+preview = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["retriever.py"]
+namespaces = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.strawman.strawman.settings"
+addopts = "--rootdir=tests/strawman"
