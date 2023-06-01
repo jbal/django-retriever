@@ -1,196 +1,246 @@
-# Python TrendHunter API
+# Django Retriever 
+### The Simple Way to Interface JSON and Django
 
 ## Overview
-The TrendHunter API is a command line interface for scraping information
-from the TrendHunter Ideas database.
-- `assortment`
-- `trends`
-- `lists`
-- `categories`
-- `search`
+The retriever is an interface used to define how to map
+a JSON object to a Django model. The retriever takes care
+of mutating the JSON structure, connecting foreign objects,
+and creating or updating the resulting Django model.
+
+There are several components that must be defined in the
+retriever to complete the job,
+  - `model` the Django model with which the retriever
+is intended to interface
+  - `id` the list of field names in the Django model
+that should be used to determine whether an object is
+already in the database. These can be thought of unique
+fields. If they are not actually unique, the retriever will
+react by not saving the JSON object.
+  - `structures` the critical component of the retriever. The
+`structures` attribute is the interface between the JSON
+document and the Django model. The interface is a nested structure
+of lists and dictionaries, and must nest to a series of tuple/list
+objects in the following format,
+    - `name` the name of the key in the JSON document
+    - `foreign_structures` (defined below) the list of foreign structures to
+define how a key in the JSON document must be used to relate
+Django models
+    - `structures` (defined below) the list of mappings to determine how the
+JSON document value must be mutated and saved to the Django
+model
+
+## Definitions
+- `ForeignStructure`
+  - `model` the foreign model
+  - `id` the primary key field name in the foreign model
+  - `id2` the field name in the current model that is mapped
+to the primary key in the foreign model (`id`)
+  - `Structure` the normal structure definition for the JSON
+document, because the value might very well map to another
+field on the foreign model
+- `Structure`
+  - `name` the new name of the JSON document, in the case
+the JSON and the Django model name the field differently
+  - `func` the mutation to perform on the JSON document. Can
+be one of `int`, `str`, `bool`, or a custom function
 
 ## Installation
-**Optional** Create a dedicated directory, create an isolated
-virtual environment, and activate the environment.
 ```
-mkdir trendhunter && cd "$_"
-python3 -m venv venv
-source venv/bin/activate
-```
-
-Using `pip`, install the `trendhunter` library from the Python
-Package Index,
-```
-pip install trendhunter
+pip install django-retriever
 ```
 
 ## Contributing
 Before contributing, please install the `test` and `dev` versions of
 the library,
 ```
-pip install trendhunter[dev,test]
+pip install django-retriever[dev,test]
 ```
 
-If you contribute and add tests to your contributions, you can run 
-`./bin/test` from the root project directory. The script runs pytest
-using the `/tests` directory as the root. It is not currently configured to accept
-additional pytest options.
+Please run tests using (in the root project directory)
+```
+python -m pytest tests
+```
 
 Once the package is ready to be uploaded, please complete the
 following in order,
 - Increment the `version` template in `pyproject.toml`
 - Set the `PYPI_TOKEN` environment variable
-- Run `/bin/twine`
+- Run `./bin/twine` from the root project directory
 
 
 ## Usage
-Before using the API, ensure you are in the correct directory and
-have activated your virtual environment. You can find your created
-trendhunter directory with,
-```
-find ~ -type d -name trendhunter
-```
+The best explanation is going to be through an implementation, so please
+consider the following case. The JSON object includes information
+about a product image, and is taken from a public API.
 
-Copy the correct location and use it to navigate and start your
-virtual environment. Using `/jbal/trendhunter` as my directory,
+Consider the JSON document,
 ```
-cd /jbal/trendhunter && source venv/bin/activate
+{
+  "results": [
+    {
+      "raw": {
+        "ec_sku": "333333",
+        "image": "https://image3.jpeg"
+      }
+    }
+    {
+      "raw": {
+        "ec_sku": "333333",
+        "image": "https://image3.jpeg"
+      }
+    }
+    {
+      "raw": {
+        "ec_sku": "333333",
+        "image": "https://image3.jpeg"
+      }
+    }
+  ]
+}
 ```
+The JSON document should be loaded into a python object,
+using a parser of your choice. The following code in
+`models.py` and `retriever.py` is a sample that could be
+used to parse the JSON document into some database objects
+through the Django ORM.
+```
+# models.py
 
-Upgrade your environment to hold the latest version of `trendhunter`, as
-it may have been updated recently,
-```
-pip install trendhunter --upgrade
-```
+from django.db import models
 
-The API is implemented through Python Click, a command line
-interface. The API implements 5 subcommands,
-- `assortment`
-- `trends`
-- `lists`
-- `categories`
-- `search`
 
-The `trends`, `lists, `categories`, and `search` commands are very similar,
-because they accept a variety of optional arguments, and one
-required argument. The required argument is the name of the TrendHunter 
-site from which you want to base your query. This argument is called the
-`uid`, and must come after the subcommand.
-```
-trendhunter trends [OPTIONS] UID
-```
+class Product(models.Model):
 
-The `assortment` subcommand is unique, in that it does not accept a `uid`
-argument. Instead, it requires at least one `-i, --item` optional argument.
-The `assortment` continues to accept a variety of other optional
-arguments, with a couple exceptions detailed below.
-```
-trendhunter assortment [OPTIONS]
-```
+    id = models.AutoField(
+        primary_key=True)
+    sku = models.CharField(
+        max_length=64)
 
-The following excerpt describes every optional argument that can
-be passed to the API via the console,
-```
-  -b, --best                      Specify that the API should use the 'best'
-                                  searching algorithm. By default the API is
-                                  configured to query the default results
-                                  page.
-  -c, --concurrency INTEGER       "Number of concurrent requests. The API
-                                  default is to send 5 "concurrent requests,
-                                  but can be increased to 100. You may want to
-                                  "limit concurrency to avoid 429 errors on
-                                  the TrendHunter API.  [default: 5]
-  -f, --format [0|1]              The output format. The API default (0) is to
-                                  format the output to the console. If the
-                                  user would prefer to output the details to a
-                                  PowerPoint file, the 1 value can be used.
-                                  [default: 0]
-  -i, --item <TEXT CHOICE INTEGER INTEGER>...
-                                  The assortment feature. Provides the ability
-                                  to query trends, lists, categories, and
-                                  search in one command. The entire assortment
-                                  is specialized to ignore duplicates. Each
-                                  item must be specified as a tuple of uid,
-                                  type of article, n (number of articles), and
-                                  m (chunk size for processing). The order is
-                                  important, and must be (uid, type, n, m).
-                                  The type of article must be an integer from
-                                  1 through 4 inclusive,
-                                  
-                                  [1] trends
-                                  [2] lists
-                                  [3] categories
-                                  [4] search
-                                  [required]
-  -l, --loglevel [10|20|30|40|50]
-                                  The log level of the root Python logger. The
-                                  API default is to log anything at or above
-                                  the INFO level. Decrease the value to view
-                                  more verbose logs.  [default: 20]
-  -m INTEGER                      Size of a simultaneously-processed article
-                                  chunk. The API default is to process 100
-                                  articles at one time. Decrease this value to
-                                  reduce memory usage.  [default: 100]
-  -n INTEGER                      Number of articles. The API default is to
-                                  return 50 articles matching the provided
-                                  uid, but the `n` option is used to customize
-                                  this value.  [default: 50]
-  -p, --path PATH                 The path to write any output files. If one
-                                  is not passed, the output path will be the
-                                  current path.
-  -s, --size <INTEGER INTEGER>...
-                                  The maximum resolution of any created image
-                                  files. The API default is to limit a
-                                  thumbnail to a dimension of (300, 300). If
-                                  an image is not equal in width and height
-                                  dimension, the increase in resolution will
-                                  be halted when the aspect ratio forces the
-                                  larger dimension to hit the boundary
-                                  specified here.  [default: 800, 800]
-  -t, --timeout INTEGER           Number of seconds until a request times out.
-                                  The API default is to allow 10 seconds for a
-                                  request to complete. If you are receiving
-                                  several timeout exceptions, try to increaase
-                                  this value.  [default: 10]
-  -y, --proxy TEXT                The HTTP url of a proxy server. The API
-                                  default is to not use a proxy server, but if
-                                  the TrendHunter API bans your IP address,
-                                  you can provide one here. Please try to use
-                                  a VPN before resorting to using a proxy
-                                  server. If you do need to use a proxy,
-                                  please be aware of the considerable risk if
-                                  the provider is not secure.
-  --help                          Show this message and exit.
-```
 
-**Note** `-b, --best` is only recognized when using the
-`assortment`, `categories`, or `search` subcommand.
+class Image(models.Model):
 
-**Note** `-i, --item` is only recognized when using the
-`assortment` subcommand. Further, the `-m` and `-n` options are not recognized
-for the `assortment` subcommand, because they are enveloped in the
-`-i, --item` option.
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="images")
+    image = models.ImageField(
+        # storage, etc.
+        ...)
+    source_url = models.CharField(
+      max_length=512)
+```
+```
+# retrievers.py
 
-At any point, if you get stuck and would like to reference the
-required and optional arguments, you can view the Click help page
-for either the base `trendhunter` command or one of the subcommands,
-```
-trendhunter --help
-```
-```
-trendhunter trends --help
-```
+from retriever import Retriever
+from .models import (
+    Image,
+    Product
+)
 
-## Examples
+
+class ProductRetriever(Retriever):
+
+    model = Product
+    id = ["sku"]
+    structures = [
+        {
+            "results": [
+                {
+                    "raw": [
+                        [
+                            "ec_sku",
+                            [],
+                            [
+                                "sku",
+                                None
+                            ]
+                        ]
+                    ]
+                }
+            ]
+        }
+    ]
+
+
+class ImageRetriever(Retriever):
+
+    model = Image
+    id = ["product_id", "source_url"]
+    structures = [
+        {
+            "results": [
+                {
+                    "raw": [
+                        [
+                            # JSON name
+                            "ec_sku",
+                            # foreign structures
+                            [
+                                # foreign model
+                                Product,
+                                # id and foreign id field name
+                                ["id"],
+                                ["product_id"],
+                                # normal structure, the `ec_sku` field is
+                                # clearly a map to the unique field `sku`, not `id` # itself. Note that `sku` should be unique or the
+                                # structure will not be created and an error should
+                                # be propagated
+                                [
+                                    "sku",
+                                    None
+                                ],
+                            ],
+                            # structures. Note `sku` is not in the `Image` model,
+                            # we are not interested in mapping it
+                            [],
+                        ],
+                        [
+                            # JSON name
+                            "image",
+                            # no foreign structures
+                            [],
+                            # map it to `source_url` field name, no
+                            # mutation required
+                            [
+                                "source_url",
+                                None,
+                            ],
+                        ],
+                    ]
+                },
+            ]
+        }
+    ]
 ```
-trendhunter trends -n 5 -f 1 -p ../test/ holiday-giveaways
+If you've loaded in the JSON document and defined the retrievers
+correctly, you can now simply save the JSON document to
+the database,
 ```
+from .retrievers import *
+
+json_object = {
+    "results": [
+        ...
+    ]
+}
+
+ProductRetriever(
+    batch_size=5,
+    default=[],
+    strict=True
+).save(json_object)
+
+ImageRetriever(
+    batch_size=5,
+    default=[],
+    strict=True
+).save(json_object)
 ```
-trendhunter lists 2023-tech-trends
-```
-```
-trendhunter categories -l 10 -f 1 -n 200 -m 3 food
-```
-```
-trendhunter search candy
-```
+The retrievers have used the `ec_sku` field in the JSON
+document to find the `Product` object that corresponds to
+the correct `Image` object. In this way, a JSON document can
+be decomposed into several retrievers, and the definitions 
+can be isolated. Note, the `ProductRetriever` should be called
+before the `ImageRetriever`, or there will be no `Product` objects
+in the database to find.
